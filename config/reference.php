@@ -703,6 +703,7 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  * }
  * @psalm-type LaravelCloudConfig = array{
  *     agent_socket?: scalar|Param|null, // Default path to the cloud-agent runtime socket. Overridable at runtime via LARAVEL_CLOUD_AGENT_SOCKET. // Default: "/tmp/cloud-agent.sock"
+ *     log_socket?: scalar|Param|null, // Default address of the cloud observability log socket. Overridable at runtime via LARAVEL_CLOUD_LOG_SOCKET. // Default: "unix:///tmp/cloud-init.sock"
  * }
  * @psalm-type DoctrineConfig = array{
  *     dbal?: array{

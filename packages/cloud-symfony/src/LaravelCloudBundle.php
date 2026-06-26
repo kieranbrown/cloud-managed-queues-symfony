@@ -4,6 +4,8 @@ namespace Laravel\Cloud;
 
 use Laravel\Cloud\Agent\AgentClient;
 use Laravel\Cloud\Messenger\CloudQueueTransportFactory;
+use Laravel\Cloud\Observability\Events;
+use Laravel\Cloud\Observability\QueueEventSubscriber;
 use Laravel\Cloud\Sqs\SqsClientFactory;
 use Symfony\Component\Config\Definition\Configurator\DefinitionConfigurator;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
@@ -17,7 +19,8 @@ use function Symfony\Component\DependencyInjection\Loader\Configurator\service;
 /**
  * Wires Laravel Cloud Managed Queues into Symfony: a Messenger transport factory
  * (laravel-cloud://) backed by the parsed managed-queue config, an SQS client,
- * and the cloud-agent runtime client.
+ * the cloud-agent runtime client, and the observability subscriber that emits
+ * queue metrics to the Cloud dashboard over the log socket.
  */
 class LaravelCloudBundle extends AbstractBundle
 {
@@ -29,6 +32,10 @@ class LaravelCloudBundle extends AbstractBundle
                     ->info('Default path to the cloud-agent runtime socket. Overridable at runtime via LARAVEL_CLOUD_AGENT_SOCKET.')
                     ->defaultValue('/tmp/cloud-agent.sock')
                 ->end()
+                ->scalarNode('log_socket')
+                    ->info('Default address of the cloud observability log socket. Overridable at runtime via LARAVEL_CLOUD_LOG_SOCKET.')
+                    ->defaultValue('unix:///tmp/cloud-init.sock')
+                ->end()
             ->end();
     }
 
@@ -39,6 +46,11 @@ class LaravelCloudBundle extends AbstractBundle
         // The socket path, with LARAVEL_CLOUD_AGENT_SOCKET overriding the
         // configured default. Resolved once and shared by both consumers.
         $parameters->set('laravel_cloud.agent_socket', '%env(default:laravel_cloud.agent_socket_default:LARAVEL_CLOUD_AGENT_SOCKET)%');
+
+        $parameters->set('laravel_cloud.log_socket_default', $config['log_socket']);
+        // The observability socket address, with LARAVEL_CLOUD_LOG_SOCKET
+        // overriding the configured default. Matches Laravel's cloud socket.
+        $parameters->set('laravel_cloud.log_socket', '%env(default:laravel_cloud.log_socket_default:LARAVEL_CLOUD_LOG_SOCKET)%');
 
         $services = $container->services();
 
@@ -64,5 +76,18 @@ class LaravelCloudBundle extends AbstractBundle
                 service(AgentClient::class),
             ])
             ->tag('messenger.transport_factory');
+
+        // Observability: a socket emitter speaking Laravel Cloud's event
+        // protocol, driven by a Messenger subscriber that maps the worker
+        // lifecycle onto queue/failed_job events for the Cloud dashboard.
+        $services->set(Events::class)
+            ->args([param('laravel_cloud.log_socket')]);
+
+        $services->set(QueueEventSubscriber::class)
+            ->args([
+                service(Events::class),
+                service(ManagedQueueConfig::class),
+            ])
+            ->tag('kernel.event_subscriber');
     }
 }

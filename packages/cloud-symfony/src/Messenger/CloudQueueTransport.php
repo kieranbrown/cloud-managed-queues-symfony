@@ -158,7 +158,7 @@ final class CloudQueueTransport implements TransportInterface, MessageCountAware
 
     private function decode(string $body, string $messageId, ?string $receiptHandle, string $queueUrl, bool $fromAgent): Envelope
     {
-        $stamp = new CloudQueueReceivedStamp($messageId, $receiptHandle, $queueUrl, $fromAgent);
+        $stamp = new CloudQueueReceivedStamp($messageId, $receiptHandle, $queueUrl, $fromAgent, $body);
 
         try {
             $envelope = $this->serializer->decode($this->unwrap($body));

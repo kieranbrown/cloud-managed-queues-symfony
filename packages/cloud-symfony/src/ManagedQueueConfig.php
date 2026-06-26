@@ -30,6 +30,8 @@ final class ManagedQueueConfig
         public readonly string $credentials,
         public readonly string $queue,
         public readonly string $agentSocket,
+        public readonly string $prefix = '',
+        public readonly string $suffix = '',
     ) {
     }
 
@@ -62,7 +64,41 @@ final class ManagedQueueConfig
             credentials: (string) ($connection['credentials'] ?? 'default'),
             queue: $queue,
             agentSocket: $agentSocket !== null && $agentSocket !== '' ? $agentSocket : '/tmp/cloud-agent.sock',
+            prefix: $prefix,
+            suffix: $suffix,
         );
+    }
+
+    /**
+     * Reduce a full SQS queue URL (or name) back to its logical queue name by
+     * stripping the configured prefix and suffix — the same name the Laravel
+     * Cloud dashboard groups metrics under.
+     *
+     * Mirrors Laravel\Foundation\Cloud\Queue::normalizeQueue: the prefix is
+     * removed from the front, and the suffix from the end, taking care to keep a
+     * trailing ".fifo" in place for FIFO queues.
+     */
+    public function normalizeQueue(?string $queue): string
+    {
+        $queue = (string) $queue;
+
+        if ($this->prefix !== '' && str_starts_with($queue, $this->prefix.'/')) {
+            $queue = substr($queue, strlen($this->prefix) + 1);
+        }
+
+        if ($this->suffix !== '') {
+            if (str_ends_with($queue, '.fifo')) {
+                $base = substr($queue, 0, -strlen('.fifo'));
+
+                if (str_ends_with($base, $this->suffix)) {
+                    $queue = substr($base, 0, -strlen($this->suffix)).'.fifo';
+                }
+            } elseif (str_ends_with($queue, $this->suffix)) {
+                $queue = substr($queue, 0, -strlen($this->suffix));
+            }
+        }
+
+        return $queue;
     }
 
     /**
