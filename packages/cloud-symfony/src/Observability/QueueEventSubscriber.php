@@ -35,6 +35,34 @@ use Symfony\Component\Uid\Uuid;
  */
 final class QueueEventSubscriber implements EventSubscriberInterface
 {
+    /**
+     * Byte budgets for the two large fields of a "failed_job" event.
+     *
+     * WHY THIS EXISTS — a workaround, not the real fix:
+     *
+     * Laravel Cloud's log pipeline ships container stdout to Kafka via a
+     * Fluent Bit collector. containerd splits any stdout line longer than
+     * 16 KiB into multiple CRI partial records ("P" … "F"). The collector's
+     * tail input does not currently reassemble those partials (no
+     * `multiline.parser cri`), so a log line over 16 KiB arrives as truncated,
+     * invalid JSON. The router then can't read `_cloud_event` and drops the
+     * record into the generic "customer-logs" topic instead of routing it to
+     * "failed-job-events" — so the failed job never reaches the dashboard.
+     *
+     * Small queue lifecycle events (~120 bytes) are unaffected; only the fat
+     * "failed_job" event (serialized envelope payload + full exception trace,
+     * ~18 KiB) crosses the boundary. We keep the whole event comfortably under
+     * 16 KiB here so it survives the pipeline as-is.
+     *
+     * THE REAL FIX belongs in the platform's logging collector: add
+     * `multiline.parser cri` to the Fluent Bit `tail` input (configmap
+     * `kube-system/logging-collector-config`) so CRI partial lines are
+     * stitched back together. Once that lands, these caps can be relaxed or
+     * removed. They are deliberately conservative for now.
+     */
+    private const MAX_EXCEPTION_BYTES = 4000;
+    private const MAX_PAYLOAD_BODY_BYTES = 2000;
+
     public function __construct(
         private readonly Events $events,
         private readonly ManagedQueueConfig $config,
@@ -132,11 +160,16 @@ final class QueueEventSubscriber implements EventSubscriberInterface
             return;
         }
 
-        // A terminal failure is also recorded as a failed job, carrying the raw
-        // payload and exception so it can be inspected and retried from the
-        // Laravel Cloud dashboard.
+        // A terminal failure is also recorded as a failed job, carrying the
+        // payload and exception so it can be inspected (and, once payloads are
+        // shipped whole, retried) from the Laravel Cloud dashboard.
+        //
+        // Both fields are trimmed to keep the event under the collector's CRI
+        // line limit — see the MAX_* constants above for the full rationale.
         $startedAt = $this->startedAt($envelope) ?? $finishedAt;
         $received = $envelope->last(CloudQueueReceivedStamp::class);
+
+        $exception = (string) mb_convert_encoding((string) $event->getThrowable(), 'UTF-8');
 
         $this->events->emit([
             '_cloud_event' => 'failed_job',
@@ -144,9 +177,56 @@ final class QueueEventSubscriber implements EventSubscriberInterface
             'queue' => $queue,
             'started_at' => $startedAt->format('Y-m-d H:i:s.u'),
             'attempts' => RedeliveryStamp::getRetryCountFromEnvelope($envelope) + 1,
-            'payload' => $received?->body ?? '',
-            'exception' => (string) mb_convert_encoding((string) $event->getThrowable(), 'UTF-8'),
+            'payload' => $this->trimPayload($received?->body ?? ''),
+            'exception' => $this->truncate($exception, self::MAX_EXCEPTION_BYTES),
         ]);
+    }
+
+    /**
+     * Shrink the failed-job payload so the event stays under the collector's
+     * CRI line limit. The job's identifying metadata (uuid, displayName) is
+     * preserved so the dashboard can still name the job; the bulky serialized
+     * body — which balloons with an ErrorDetailsStamp stack trace baked in on
+     * every retry — is truncated.
+     *
+     * Truncating the body means a retried job cannot be fully reconstructed
+     * from this payload; that is an acceptable trade-off for the workaround and
+     * is resolved by the real collector-side fix described on the constants.
+     */
+    private function trimPayload(string $payload): string
+    {
+        $decoded = json_decode($payload, true);
+
+        if (! is_array($decoded)) {
+            return $this->truncate($payload, self::MAX_PAYLOAD_BODY_BYTES);
+        }
+
+        $body = (string) ($decoded['body'] ?? '');
+        $truncated = strlen($body) > self::MAX_PAYLOAD_BODY_BYTES;
+
+        $compact = array_filter([
+            'uuid' => $decoded['uuid'] ?? null,
+            'displayName' => $decoded['displayName'] ?? null,
+            'body' => $truncated ? substr($body, 0, self::MAX_PAYLOAD_BODY_BYTES) : $body,
+            'body_truncated' => $truncated ?: null,
+        ], static fn ($value) => $value !== null);
+
+        return json_encode($compact, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?: '';
+    }
+
+    /**
+     * Cut a string to at most $maxBytes bytes, appending an elision marker when
+     * anything was removed. Multibyte-safe so we never split a UTF-8 sequence.
+     */
+    private function truncate(string $value, int $maxBytes): string
+    {
+        if (strlen($value) <= $maxBytes) {
+            return $value;
+        }
+
+        $marker = sprintf("\n…[truncated %d bytes — see logging-collector CRI note]", strlen($value) - $maxBytes);
+
+        return mb_strcut($value, 0, $maxBytes, 'UTF-8').$marker;
     }
 
     private function isManaged(Envelope $envelope): bool

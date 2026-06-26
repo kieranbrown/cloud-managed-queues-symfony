@@ -99,6 +99,15 @@ The failure handler runs after Messenger's retry listener so `released` vs.
 that is absent or unwritable (e.g. local development) is silently ignored and
 never affects job processing.
 
+> **Note — `failed_job` size cap (temporary workaround).** Laravel Cloud's log
+> collector (Fluent Bit) does not currently reassemble containerd's 16 KiB CRI
+> partial log lines, so a `failed_job` event larger than 16 KiB arrives as
+> truncated JSON and is misrouted away from the failed-jobs topic. To survive
+> this, the `payload` and `exception` fields are trimmed (see the `MAX_*`
+> constants in `QueueEventSubscriber`). The durable fix is platform-side —
+> adding `multiline.parser cri` to the collector's tail input — after which the
+> caps can be relaxed.
+
 ## Testing
 
 ```bash

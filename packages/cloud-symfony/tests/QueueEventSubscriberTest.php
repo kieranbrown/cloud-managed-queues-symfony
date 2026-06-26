@@ -140,6 +140,52 @@ class QueueEventSubscriberTest extends TestCase
         $this->assertNotEmpty($lines[2]['started_at']);
     }
 
+    public function testItTrimsAFailedJobUnderTheCriLineLimit(): void
+    {
+        $subscriber = $this->subscriber();
+
+        // A realistic oversized failed job: a wrapper body with a huge
+        // base64-ish blob, plus a deep exception trace.
+        $body = json_encode([
+            'uuid' => 'job-uuid-1',
+            'displayName' => 'App\\Message\\ProcessJob',
+            'body' => str_repeat('A', 12000),
+            'headers' => ['type' => 'App\\Message\\ProcessJob'],
+        ]);
+
+        $envelope = (new Envelope(new DummyMessage('big')))
+            ->with(new CloudQueueReceivedStamp('m-big', 'rh', self::QUEUE_URL, fromAgent: true, body: $body));
+        $received = new WorkerMessageReceivedEvent($envelope, 'cloud');
+
+        $lines = $this->capture(function () use ($subscriber, $received) {
+            $subscriber->onReceived($received);
+            $subscriber->onFailed(new WorkerMessageFailedEvent(
+                $received->getEnvelope(),
+                'cloud',
+                new \RuntimeException(str_repeat('deep trace ', 2000)),
+            ));
+        });
+
+        // lines: [0]=started, [1]=failed (queue), [2]=failed_job
+        $failedJob = $lines[2];
+        $this->assertSame('failed_job', $failedJob['_cloud_event']);
+
+        // The whole event must serialize to well under containerd's 16 KiB
+        // CRI line split, so it survives the logging collector intact.
+        $this->assertLessThan(16384, strlen(json_encode($failedJob)));
+
+        // Identifying metadata survives so the dashboard can still name the job.
+        $payload = json_decode($failedJob['payload'], true);
+        $this->assertSame('App\\Message\\ProcessJob', $payload['displayName']);
+        $this->assertSame('job-uuid-1', $payload['uuid']);
+        $this->assertTrue($payload['body_truncated']);
+        $this->assertLessThanOrEqual(2100, strlen($payload['body']));
+
+        // The exception is capped and marked.
+        $this->assertLessThanOrEqual(4100, strlen($failedJob['exception']));
+        $this->assertStringContainsString('truncated', $failedJob['exception']);
+    }
+
     public function testARetryableFailureEmitsReleasedAndNoFailedJob(): void
     {
         $subscriber = $this->subscriber();
