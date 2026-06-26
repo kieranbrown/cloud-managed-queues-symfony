@@ -1,0 +1,83 @@
+# laravel/cloud-symfony
+
+Run [Laravel Cloud Managed Queues](https://laravel.com/cloud) from a Symfony
+application, on top of [Symfony Messenger](https://symfony.com/doc/current/messenger.html).
+
+Managed Queues are backed by SQS, but inside a Laravel Cloud container jobs are
+**received from an in-container `cloud-agent` sidecar** over a unix socket rather
+than polled from SQS directly. This package provides a Messenger transport that:
+
+- **pushes** jobs straight to SQS, and
+- **receives** them from the agent (`GET /next`), reporting each outcome back
+  (`POST /result`) so the agent performs the actual SQS delete / visibility change.
+
+When the agent socket is absent (e.g. local development) it transparently falls
+back to receiving from SQS directly.
+
+## Installation
+
+This package is currently developed locally inside the host application via a
+Composer `path` repository:
+
+```json
+{
+    "repositories": [
+        { "type": "path", "url": "packages/cloud-symfony", "options": { "symlink": true } }
+    ],
+    "require": { "laravel/cloud-symfony": "@dev" }
+}
+```
+
+The bundle is auto-registered by Symfony Flex. If registering manually, add
+`Laravel\Cloud\LaravelCloudBundle` to `config/bundles.php`.
+
+## Configuration
+
+Define a Messenger transport with the `laravel-cloud://` DSN and route your
+messages to it:
+
+```yaml
+# config/packages/messenger.yaml
+framework:
+    messenger:
+        transports:
+            cloud: 'laravel-cloud://managed-queue'
+        routing:
+            'App\Message\ProcessJob': cloud
+```
+
+The SQS coordinates are read from the `LARAVEL_CLOUD_MANAGED_QUEUES_CONFIG`
+environment variable injected by Laravel Cloud, so the DSN itself carries no
+connection detail.
+
+| Environment variable                   | Purpose                                            | Default                 |
+| -------------------------------------- | -------------------------------------------------- | ----------------------- |
+| `LARAVEL_CLOUD_MANAGED_QUEUES_CONFIG`  | JSON describing the SQS connection (prefix, suffix, queue, region, credentials) | — |
+| `LARAVEL_CLOUD_AGENT_SOCKET`           | Path to the cloud-agent runtime socket             | `/tmp/cloud-agent.sock` |
+
+Force the receive mode with the `use_agent` transport option if auto-detection
+(socket presence) isn't desired:
+
+```yaml
+cloud: 'laravel-cloud://managed-queue?use_agent=true'
+```
+
+## Semantics
+
+| Messenger    | Managed queue                                                    |
+| ------------ | ---------------------------------------------------------------- |
+| `send()`     | SQS `SendMessage` (DelayStamp → `DelaySeconds`, capped at 900s)  |
+| `ack()`      | agent `POST /result {status: processed}` → SQS delete            |
+| `reject()`   | same as `ack()` — see below                                      |
+
+Symfony implements retries by re-sending a fresh copy of the message and then
+**rejecting** the original, so a rejected message must leave the queue — exactly
+how Symfony's own SQS transport behaves. The agent's `released` outcome (reset
+visibility for SQS-native redelivery) is therefore not used under Messenger's
+re-send retry model.
+
+## Testing
+
+```bash
+php bin/phpunit --testsuite "laravel/cloud-symfony"
+```

@@ -1,0 +1,20 @@
+framework:
+    messenger:
+        transports:
+            # Laravel Cloud Managed Queue. SQS coordinates come from
+            # LARAVEL_CLOUD_MANAGED_QUEUES_CONFIG; receiving goes through the
+            # in-container cloud-agent when its socket is present, otherwise
+            # directly from SQS (local development).
+            cloud: 'laravel-cloud://managed-queue'
+
+            sync: 'sync://'
+
+        routing:
+            # Route your job messages onto the managed queue.
+            'App\Message\ProcessJob': cloud
+
+when@test:
+    framework:
+        messenger:
+            transports:
+                cloud: 'in-memory://'
