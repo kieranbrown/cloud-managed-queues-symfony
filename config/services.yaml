@@ -7,6 +7,12 @@
 # Put parameters here that don't need to change on each machine where the app is deployed
 # https://symfony.com/doc/current/best_practices.html#use-parameters-for-application-configuration
 parameters:
+    # Fallback defaults for env vars referenced by config. Laravel Cloud manages
+    # its own .env, so Symfony's committed .env defaults aren't available at build
+    # time; these keep cache:clear/warmup from failing on missing env vars.
+    env(APP_SECRET): ''
+    env(DEFAULT_URI): 'http://localhost'
+    env(MAILER_DSN): 'null://null'
 
 services:
     # default configuration for services in *this* file
