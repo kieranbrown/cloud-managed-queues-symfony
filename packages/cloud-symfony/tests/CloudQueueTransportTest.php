@@ -62,6 +62,11 @@ class CloudQueueTransportTest extends TestCase
         $wrapper = json_decode($this->sqsCommands[0]['MessageBody'], true);
         $this->assertArrayHasKey('body', $wrapper);
         $this->assertArrayHasKey('headers', $wrapper);
+
+        // Laravel-shaped metadata so the Cloud failed-job dashboard can name the
+        // job (its display name is "typically its class").
+        $this->assertSame(DummyMessage::class, $wrapper['displayName']);
+        $this->assertNotEmpty($wrapper['uuid']);
     }
 
     public function testSendConvertsTheDelayStampToWholeSeconds(): void

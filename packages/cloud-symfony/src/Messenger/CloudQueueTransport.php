@@ -13,6 +13,7 @@ use Symfony\Component\Messenger\Stamp\TransportMessageIdStamp;
 use Symfony\Component\Messenger\Transport\Receiver\MessageCountAwareInterface;
 use Symfony\Component\Messenger\Transport\Serialization\SerializerInterface;
 use Symfony\Component\Messenger\Transport\TransportInterface;
+use Symfony\Component\Uid\Uuid;
 
 /**
  * A Symfony Messenger transport for Laravel Cloud Managed Queues.
@@ -185,7 +186,15 @@ final class CloudQueueTransport implements TransportInterface, MessageCountAware
         // serializer body (it may be native-serialized PHP) and carry the
         // headers alongside it. This round-trips identically whether the message
         // comes back from the agent or straight from SQS.
+        //
+        // The "uuid" and "displayName" keys mirror Laravel's queue payload shape
+        // so that Laravel Cloud's managed-queue dashboard can identify a failed
+        // job by name. They are observability-only metadata; decode() reads only
+        // "body"/"headers", so the extra keys round-trip harmlessly (including
+        // when the platform re-queues a failed job verbatim for retry).
         return json_encode([
+            'uuid' => (string) Uuid::v7(),
+            'displayName' => $envelope->getMessage()::class,
             'body' => base64_encode($encoded['body'] ?? ''),
             'headers' => $encoded['headers'] ?? [],
         ], JSON_THROW_ON_ERROR);
