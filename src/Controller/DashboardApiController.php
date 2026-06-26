@@ -44,12 +44,13 @@ final class DashboardApiController extends AbstractController
         $min = max(0, (int) ($payload['min_duration'] ?? 0));
         $max = max($min, (int) ($payload['max_duration'] ?? 0));
         $queue = in_array($payload['queue'] ?? null, self::QUEUES, true) ? $payload['queue'] : 'default';
+        $failChance = max(0, min(100, (int) ($payload['fail_chance'] ?? 0)));
 
         $batchId = (string) new Ulid();
         $ids = $this->store->insertBatch($batchId, $queue, $count, microtime(true));
 
         foreach ($ids as $metricId) {
-            $this->bus->dispatch(new ProcessJob($metricId, random_int($min, $max)));
+            $this->bus->dispatch(new ProcessJob($metricId, random_int($min, $max), $failChance));
         }
 
         return new JsonResponse(['batchId' => $batchId]);

@@ -23,6 +23,7 @@ const form = reactive({
     min_duration: 200,
     max_duration: 2000,
     queue: 'default',
+    fail_chance: 0,
 });
 
 const queueMeta = [
@@ -36,8 +37,11 @@ const settingsOpen = ref(false);
 let pollTimeout = null;
 let pollActive = false;
 
-const isActive = computed(() => state.batchId && state.stats.total > 0 && state.stats.completed < state.stats.total);
-const progress = computed(() => (state.stats.total > 0 ? (state.stats.completed / state.stats.total) * 100 : 0));
+// A job is "settled" once it has either completed or failed; both count toward
+// the batch being done so failures don't leave the dashboard polling forever.
+const settled = computed(() => (state.stats.completed ?? 0) + (state.stats.failed ?? 0));
+const isActive = computed(() => state.batchId && state.stats.total > 0 && settled.value < state.stats.total);
+const progress = computed(() => (state.stats.total > 0 ? (settled.value / state.stats.total) * 100 : 0));
 
 const timelineMax = computed(() => {
     if (state.jobs.length === 0) return 1000;
@@ -92,7 +96,7 @@ function poll() {
         if (!pollActive) return;
         await fetchState();
         if (!pollActive) return;
-        if (state.stats.total > 0 && state.stats.completed >= state.stats.total && state.stats.activeWorkers === 0) {
+        if (state.stats.total > 0 && settled.value >= state.stats.total && state.stats.activeWorkers === 0) {
             stopPolling();
             return;
         }
@@ -280,6 +284,16 @@ onUnmounted(() => stopPolling());
                             <option value="critical">critical</option>
                         </select>
                     </div>
+                    <div class="min-w-[120px] flex-1">
+                        <label class="mb-1.5 block text-xs font-medium text-zinc-400">Fail Chance (%)</label>
+                        <input
+                            v-model.number="form.fail_chance"
+                            type="number"
+                            min="0"
+                            max="100"
+                            class="w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 font-mono text-sm text-white focus:border-rose-500 focus:ring-1 focus:ring-rose-500 focus:outline-none"
+                        />
+                    </div>
                     <button
                         type="submit"
                         :disabled="dispatching"
@@ -327,7 +341,7 @@ onUnmounted(() => stopPolling());
             </div>
 
             <!-- Secondary Stats -->
-            <div v-if="stats.total > 0" class="grid grid-cols-3 gap-3">
+            <div v-if="stats.total > 0" class="grid grid-cols-2 gap-3 md:grid-cols-4">
                 <div class="rounded-xl border border-zinc-800 bg-zinc-900/50 p-4 text-center">
                     <div class="text-xs font-medium text-zinc-500">Avg Process Time</div>
                     <div class="mt-1 font-mono text-lg font-bold text-white">{{ formatMs(stats.avgProcessMs) }}</div>
@@ -340,6 +354,12 @@ onUnmounted(() => stopPolling());
                     <div class="text-xs font-medium text-zinc-500">Still Pending</div>
                     <div class="mt-1 font-mono text-lg font-bold" :class="stats.pending > 0 ? 'text-amber-400' : 'text-zinc-600'">
                         {{ stats.pending }}
+                    </div>
+                </div>
+                <div class="rounded-xl border border-zinc-800 bg-zinc-900/50 p-4 text-center">
+                    <div class="text-xs font-medium text-zinc-500">Failed</div>
+                    <div class="mt-1 font-mono text-lg font-bold" :class="stats.failed > 0 ? 'text-rose-500' : 'text-zinc-600'">
+                        {{ stats.failed ?? 0 }}
                     </div>
                 </div>
             </div>
@@ -360,6 +380,10 @@ onUnmounted(() => stopPolling());
                         <span class="flex items-center gap-1.5">
                             <span class="inline-block h-2.5 w-2.5 animate-pulse rounded-sm bg-amber-500" />
                             Active
+                        </span>
+                        <span class="flex items-center gap-1.5">
+                            <span class="inline-block h-2.5 w-2.5 rounded-sm bg-rose-500" />
+                            Failed
                         </span>
                     </div>
                 </div>
@@ -396,7 +420,7 @@ onUnmounted(() => stopPolling());
                                 :style="{
                                     left: `${(job.startMs / timelineMax) * 100}%`,
                                     width: `${((job.endMs - job.startMs) / timelineMax) * 100}%`,
-                                    backgroundColor: job.worker ? workerColors[job.worker] : '#3b82f6',
+                                    backgroundColor: job.status === 'failed' ? '#f43f5e' : (job.worker ? workerColors[job.worker] : '#3b82f6'),
                                 }"
                             />
                             <!-- Active processing (no end yet) -->

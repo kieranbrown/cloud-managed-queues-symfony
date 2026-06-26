@@ -26,6 +26,16 @@ final class ProcessJobHandler
             usleep($job->workDurationMs * 1000);
         }
 
+        // Optionally fail on purpose. Throwing is the only way a job "fails" in
+        // Symfony Messenger (there is no per-job execution timeout), so this is
+        // what drives the worker's failure → retry → dead-letter flow and the
+        // managed-queue "released"/"failed"/"failed_job" cloud events.
+        if ($job->failChance > 0 && random_int(1, 100) <= $job->failChance) {
+            $this->store->recordFailure($job->metricId, microtime(true));
+
+            throw new \RuntimeException(sprintf('Intentional failure for job metric #%d.', $job->metricId));
+        }
+
         $this->store->recordCompletion($job->metricId, microtime(true));
     }
 }

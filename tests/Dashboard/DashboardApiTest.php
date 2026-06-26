@@ -47,6 +47,29 @@ class DashboardApiTest extends WebTestCase
         $this->assertNotNull($state['jobs'][0]['worker']);
     }
 
+    public function testAFailedJobIsReflectedInStatsAndStatus(): void
+    {
+        $ids = $this->store->insertBatch('batch-fail', 'default', 2, microtime(true));
+
+        // One job completes, the other is marked failed (as the handler does
+        // before re-throwing).
+        $this->store->recordPickup($ids[1], 'host:1', microtime(true));
+        $this->store->recordCompletion($ids[1], microtime(true));
+        $this->store->recordPickup($ids[2], 'host:1', microtime(true));
+        $this->store->recordFailure($ids[2], microtime(true));
+
+        $this->client->request('GET', '/api/state?batch=batch-fail');
+        $state = json_decode($this->client->getResponse()->getContent(), true);
+
+        $this->assertSame(2, $state['stats']['total']);
+        $this->assertSame(1, $state['stats']['completed']);
+        $this->assertSame(1, $state['stats']['failed']);
+
+        $statuses = array_column($state['jobs'], 'status');
+        $this->assertContains('failed', $statuses);
+        $this->assertContains('completed', $statuses);
+    }
+
     public function testResetWipesMetricsButRecentBatchesReflectIt(): void
     {
         $this->client->request('POST', '/api/dispatch', content: json_encode([

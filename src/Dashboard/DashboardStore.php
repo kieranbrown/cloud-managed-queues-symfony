@@ -104,7 +104,9 @@ final class DashboardStore
 
     public function recordCompletion(int $metricId, float $at): void
     {
-        $this->connection->update('job_metrics', ['completed_at' => $at], ['id' => $metricId]);
+        // Clear any failure flag too: a job that ultimately succeeds on a retry
+        // should no longer count as failed.
+        $this->connection->update('job_metrics', ['completed_at' => $at, 'failed' => false], ['id' => $metricId]);
     }
 
     public function recordFailure(int $metricId, float $at): void
@@ -175,7 +177,7 @@ final class DashboardStore
 
     /**
      * @return array{
-     *     total: int, pending: int, processing: int, completed: int,
+     *     total: int, pending: int, processing: int, completed: int, failed: int,
      *     avgWaitMs: float|null, avgProcessMs: float|null, totalDurationMs: float|null,
      *     activeWorkers: int, workersByQueue: array<string,int>, peakWorkers: int,
      *     uniqueWorkers: int, jobsPerSecond: float|null
@@ -184,7 +186,7 @@ final class DashboardStore
     public function stats(?string $batchId): array
     {
         $base = [
-            'total' => 0, 'pending' => 0, 'processing' => 0, 'completed' => 0,
+            'total' => 0, 'pending' => 0, 'processing' => 0, 'completed' => 0, 'failed' => 0,
             'avgWaitMs' => null, 'avgProcessMs' => null, 'totalDurationMs' => null,
             'activeWorkers' => $this->countWorkers(),
             'workersByQueue' => $this->workersByQueue(),
@@ -200,7 +202,8 @@ final class DashboardStore
                 count(*) as total,
                 count(case when picked_up_at is null then 1 end) as pending,
                 count(case when picked_up_at is not null and completed_at is null then 1 end) as processing,
-                count(case when completed_at is not null then 1 end) as completed,
+                count(case when completed_at is not null and not failed then 1 end) as completed,
+                count(case when failed then 1 end) as failed,
                 avg(case when completed_at is not null then (picked_up_at - dispatched_at) * 1000 end) as avg_wait_ms,
                 avg(case when completed_at is not null then (completed_at - picked_up_at) * 1000 end) as avg_process_ms,
                 min(dispatched_at) as min_dispatched_at,
@@ -218,6 +221,7 @@ final class DashboardStore
             'pending' => (int) ($row['pending'] ?? 0),
             'processing' => (int) ($row['processing'] ?? 0),
             'completed' => $completed,
+            'failed' => (int) ($row['failed'] ?? 0),
             'avgWaitMs' => isset($row['avg_wait_ms']) ? round((float) $row['avg_wait_ms']) : null,
             'avgProcessMs' => isset($row['avg_process_ms']) ? round((float) $row['avg_process_ms']) : null,
             'totalDurationMs' => $completed > 0 && $span > 0 ? round($span * 1000) : null,
@@ -238,7 +242,7 @@ final class DashboardStore
         );
 
         $rows = $this->connection->fetchAllAssociative(
-            'SELECT id, job_number, queue, worker_id, dispatched_at, picked_up_at, completed_at
+            'SELECT id, job_number, queue, worker_id, dispatched_at, picked_up_at, completed_at, failed
              FROM job_metrics WHERE batch_id = ?
              ORDER BY (picked_up_at is null), picked_up_at asc, job_number asc',
             [$batchId],
@@ -247,6 +251,7 @@ final class DashboardStore
         return array_map(static function (array $m) use ($dispatchedAt): array {
             $pickedUp = $m['picked_up_at'] !== null ? (float) $m['picked_up_at'] : null;
             $completed = $m['completed_at'] !== null ? (float) $m['completed_at'] : null;
+            $failed = (bool) $m['failed'];
 
             return [
                 'id' => (int) $m['id'],
@@ -256,7 +261,7 @@ final class DashboardStore
                 'waitMs' => $pickedUp !== null ? round(($pickedUp - $dispatchedAt) * 1000) : null,
                 'startMs' => $pickedUp !== null ? round(($pickedUp - $dispatchedAt) * 1000) : null,
                 'endMs' => $completed !== null ? round(($completed - $dispatchedAt) * 1000) : null,
-                'status' => $completed !== null ? 'completed' : ($pickedUp !== null ? 'processing' : 'pending'),
+                'status' => $failed ? 'failed' : ($completed !== null ? 'completed' : ($pickedUp !== null ? 'processing' : 'pending')),
             ];
         }, $rows);
     }
