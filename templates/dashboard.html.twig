@@ -1,0 +1,13 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Managed Queues Demo</title>
+    {{ vite_entry_link_tags('app') }}
+    {{ vite_entry_script_tags('app') }}
+</head>
+<body class="font-sans antialiased bg-zinc-950 text-zinc-100">
+    <div id="app" data-initial-state="{{ initialState|json_encode|e('html_attr') }}"></div>
+</body>
+</html>

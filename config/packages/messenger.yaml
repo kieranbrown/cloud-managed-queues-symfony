@@ -1,20 +1,21 @@
 framework:
     messenger:
         transports:
-            # Laravel Cloud Managed Queue. SQS coordinates come from
-            # LARAVEL_CLOUD_MANAGED_QUEUES_CONFIG; receiving goes through the
-            # in-container cloud-agent when its socket is present, otherwise
-            # directly from SQS (local development).
-            cloud: 'laravel-cloud://managed-queue'
+            # Laravel Cloud Managed Queue. Defaults to the managed-queue DSN
+            # (SQS coordinates come from LARAVEL_CLOUD_MANAGED_QUEUES_CONFIG and
+            # receiving goes through the in-container cloud-agent when present).
+            # Override JOBS_TRANSPORT_DSN locally (e.g. sync://) to run without SQS.
+            cloud: '%env(JOBS_TRANSPORT_DSN)%'
 
             sync: 'sync://'
 
         routing:
-            # Route your job messages onto the managed queue.
             'App\Message\ProcessJob': cloud
 
 when@test:
     framework:
         messenger:
             transports:
-                cloud: 'in-memory://'
+                # Run jobs inline in tests so the full dispatch -> handle ->
+                # metrics-recording pipeline is exercised without SQS.
+                cloud: 'sync://'

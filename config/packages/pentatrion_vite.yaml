@@ -1,0 +1,3 @@
+pentatrion_vite:
+    # Directory Vite builds into, relative to public/.
+    build_directory: build

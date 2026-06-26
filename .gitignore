@@ -13,3 +13,8 @@
 /phpunit.xml
 /.phpunit.cache/
 ###< phpunit/phpunit ###
+
+###> node / vite ###
+/node_modules/
+/public/build/
+###< node / vite ###
