@@ -7,14 +7,13 @@
         "php": ">=8.4",
         "ext-ctype": "*",
         "ext-iconv": "*",
+        "laravel/framework": "^13.17",
         "symfony/console": "8.1.*",
         "symfony/dotenv": "8.1.*",
         "symfony/flex": "^2",
         "symfony/framework-bundle": "8.1.*",
         "symfony/runtime": "8.1.*",
         "symfony/yaml": "8.1.*"
-    },
-    "require-dev": {
     },
     "config": {
         "allow-plugins": {
