@@ -38,6 +38,11 @@ final class QueueEventSubscriber implements EventSubscriberInterface
     /**
      * Byte budgets for the two large fields of a "failed_job" event.
      *
+     * TODO: REMOVE THIS TRIMMING once the logging-collector reassembles CRI
+     * partial log lines (see below). It is a temporary workaround — the caps,
+     * the trimPayload()/truncate() helpers, and their call sites should all be
+     * deleted and the full payload/exception emitted again.
+     *
      * WHY THIS EXISTS — a workaround, not the real fix:
      *
      * Laravel Cloud's log pipeline ships container stdout to Kafka via a
