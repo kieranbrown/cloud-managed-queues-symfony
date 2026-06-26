@@ -19,6 +19,7 @@
         "doctrine/dbal": "*",
         "doctrine/doctrine-bundle": "*",
         "laravel/cloud-symfony": "@dev",
+        "laravel/framework": "^13.17",
         "pentatrion/vite-bundle": "^8.2",
         "symfony/console": "8.1.*",
         "symfony/dotenv": "8.1.*",
