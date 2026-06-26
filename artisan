@@ -1,0 +1,115 @@
+#!/usr/bin/env php
+<?php
+
+/**
+ * Laravel Cloud shim.
+ *
+ * Laravel Cloud's queue workers are hard-wired to run `php artisan queue:work`.
+ * This is a Symfony app with no Artisan, so this file impersonates it: it
+ * rewrites the incoming `queue:work` invocation into the equivalent Symfony
+ * Messenger command — `messenger:consume cloud` — and then boots the real
+ * Symfony console through the same Runtime bootstrap as bin/console.
+ *
+ * Only the Laravel flags that have a clean Messenger equivalent are translated;
+ * the rest are dropped so Symfony's console doesn't error on unknown options.
+ * Any non-queue command (e.g. `php artisan about`) is passed straight through
+ * to the Symfony console unchanged.
+ *
+ * NOTE: Symfony Runtime re-`require`s this file to obtain the returned closure,
+ * so this file must not declare any top-level functions/constants (they would
+ * be redeclared on the second include). Everything below is inline and the
+ * argv rewrite is idempotent — on the second pass the command is no longer
+ * `queue:work`, so it's left untouched.
+ */
+
+use App\Kernel;
+use Symfony\Bundle\FrameworkBundle\Console\Application;
+
+if (!is_dir(__DIR__.'/vendor')) {
+    throw new LogicException('Dependencies are missing. Try running "composer install".');
+}
+
+if (!is_file(__DIR__.'/vendor/autoload_runtime.php')) {
+    throw new LogicException('Symfony Runtime is missing. Try running "composer require symfony/runtime".');
+}
+
+// Translate `php artisan queue:work|queue:listen [...]` into the equivalent
+// `messenger:consume cloud [...]`. The Messenger transport name ("cloud") is
+// defined in config/packages/messenger.yaml.
+$argv = $_SERVER['argv'] ?? [];
+
+if (in_array($argv[1] ?? null, ['queue:work', 'queue:listen'], true)) {
+    $rewritten = [$argv[0] ?? 'artisan', 'messenger:consume', 'cloud'];
+
+    foreach (array_slice($argv, 2) as $arg) {
+        // Split "--name=value"; bare flags keep a null value.
+        $name = $arg;
+        $value = null;
+
+        if (str_starts_with($arg, '--') && str_contains($arg, '=')) {
+            [$name, $value] = explode('=', $arg, 2);
+        }
+
+        switch ($name) {
+            // Stop after N messages.
+            case '--max-jobs':
+            case '--max-messages':
+                if ($value !== null) {
+                    $rewritten[] = '--limit='.$value;
+                }
+                break;
+
+            // Stop after N seconds of runtime.
+            case '--max-time':
+                if ($value !== null) {
+                    $rewritten[] = '--time-limit='.$value;
+                }
+                break;
+
+            // Seconds to wait when the queue is empty before polling again.
+            case '--sleep':
+                if ($value !== null) {
+                    $rewritten[] = '--sleep='.$value;
+                }
+                break;
+
+            // Laravel's --memory is in MB; Messenger wants an explicit unit.
+            case '--memory':
+                if ($value !== null) {
+                    $rewritten[] = '--memory-limit='.$value.'M';
+                }
+                break;
+
+            // Verbosity / quiet / no-interaction pass straight through.
+            case '-v':
+            case '-vv':
+            case '-vvv':
+            case '--verbose':
+            case '-q':
+            case '--quiet':
+            case '-n':
+            case '--no-interaction':
+                $rewritten[] = $arg;
+                break;
+
+            // Everything else (--tries, --timeout, --backoff, --queue, --once,
+            // connection/queue positional args, ...) has no clean Messenger
+            // equivalent under the re-send retry model, so it's dropped.
+            default:
+                break;
+        }
+    }
+
+    $_SERVER['argv'] = $rewritten;
+    $_SERVER['argc'] = count($rewritten);
+    $GLOBALS['argv'] = $rewritten;
+    $GLOBALS['argc'] = count($rewritten);
+}
+
+require_once __DIR__.'/vendor/autoload_runtime.php';
+
+return function (array $context) {
+    $kernel = new Kernel($context['APP_ENV'], (bool) $context['APP_DEBUG']);
+
+    return new Application($kernel);
+};
