@@ -14,6 +14,7 @@ class Kernel extends BaseKernel
      */
     private function getAllowedEnvs(): array
     {
-        return ['prod', 'dev', 'test'];
+        // "production" is included because Laravel Cloud forces APP_ENV=production.
+        return ['prod', 'dev', 'test', 'production'];
     }
 }
