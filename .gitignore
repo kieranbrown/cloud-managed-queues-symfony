@@ -1,5 +1,6 @@
 /.env.local
 /.env.*.local
+/config/reference.php
 /public/build/
 /public/bundles/
 /var/
