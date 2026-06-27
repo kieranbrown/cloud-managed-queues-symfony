@@ -4,6 +4,7 @@ namespace App\Dashboard;
 
 use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\Schema\Table;
+use Doctrine\DBAL\Types\Types;
 
 /**
  * All persistence for the queue dashboard, backed by Doctrine DBAL so the
@@ -106,15 +107,26 @@ final class DashboardStore
     {
         // Clear any failure flag too: a job that ultimately succeeds on a retry
         // should no longer count as failed.
-        $this->connection->update('job_metrics', ['completed_at' => $at, 'failed' => false], ['id' => $metricId]);
+        //
+        // The boolean type is explicit: without it DBAL binds the column as a
+        // string, so `false` becomes '' — which Postgres rejects for a boolean
+        // column, leaving the row stuck without a completed_at ("active").
+        $this->connection->update(
+            'job_metrics',
+            ['completed_at' => $at, 'failed' => false],
+            ['id' => $metricId],
+            ['failed' => Types::BOOLEAN],
+        );
     }
 
     public function recordFailure(int $metricId, float $at): void
     {
-        $this->connection->update('job_metrics', [
-            'completed_at' => $at,
-            'failed' => true,
-        ], ['id' => $metricId]);
+        $this->connection->update(
+            'job_metrics',
+            ['completed_at' => $at, 'failed' => true],
+            ['id' => $metricId],
+            ['failed' => Types::BOOLEAN],
+        );
     }
 
     public function registerWorker(string $workerId, ?string $queue): void
