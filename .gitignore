@@ -1,13 +1,7 @@
-###> symfony/framework-bundle ###
 /.env.local
-/.env.local.php
 /.env.*.local
-/config/secrets/prod/prod.decrypt.private.php
+/public/build/
 /public/bundles/
 /var/
 /vendor/
-###< symfony/framework-bundle ###
-###> node / vite ###
 /node_modules/
-/public/build/
-###< node / vite ###

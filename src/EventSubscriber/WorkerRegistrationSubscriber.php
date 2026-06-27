@@ -18,7 +18,7 @@ use Symfony\Component\Messenger\Event\WorkerStoppedEvent;
  */
 final class WorkerRegistrationSubscriber
 {
-    private const TRANSPORT = 'cloud';
+    private const TRANSPORT = 'async';
 
     public function __construct(
         private readonly DashboardStore $store,
