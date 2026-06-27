@@ -1199,12 +1199,12 @@
             "source": {
                 "type": "git",
                 "url": "git@github.com:laravel/symfony-on-cloud.git",
-                "reference": "3b4bd207af575e93a744a7df366ca23bbb1bd405"
+                "reference": "8d8583bcbda9d68c86f6c0e247875e511e222bf1"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/laravel/symfony-on-cloud/zipball/3b4bd207af575e93a744a7df366ca23bbb1bd405",
-                "reference": "3b4bd207af575e93a744a7df366ca23bbb1bd405",
+                "url": "https://api.github.com/repos/laravel/symfony-on-cloud/zipball/8d8583bcbda9d68c86f6c0e247875e511e222bf1",
+                "reference": "8d8583bcbda9d68c86f6c0e247875e511e222bf1",
                 "shasum": ""
             },
             "require": {
@@ -1241,7 +1241,7 @@
                 "source": "https://github.com/laravel/symfony-on-cloud/tree/main",
                 "issues": "https://github.com/laravel/symfony-on-cloud/issues"
             },
-            "time": "2026-06-27T10:42:31+00:00"
+            "time": "2026-06-27T19:13:31+00:00"
         },
         {
             "name": "mtdowling/jmespath.php",
