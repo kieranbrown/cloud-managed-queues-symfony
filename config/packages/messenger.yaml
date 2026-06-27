@@ -6,4 +6,4 @@ framework:
             async: '%env(MESSENGER_TRANSPORT_DSN)%'
 
         routing:
-            'App\Message\ProcessJob': async
+            '*': async
