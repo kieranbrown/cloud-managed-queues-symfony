@@ -18,7 +18,7 @@ use Symfony\Component\Messenger\Event\WorkerStoppedEvent;
  */
 final class WorkerRegistrationSubscriber
 {
-    private const TRANSPORT = 'async';
+    private const TRANSPORT = 'cloud';
 
     public function __construct(
         private readonly DashboardStore $store,
@@ -29,11 +29,23 @@ final class WorkerRegistrationSubscriber
     #[AsEventListener]
     public function onWorkerStarted(WorkerStartedEvent $event): void
     {
-        if (! $this->consumesManagedQueue($event->getWorker()->getMetadata()->getTransportNames())) {
+        $metadata = $event->getWorker()->getMetadata();
+
+        if (! $this->consumesManagedQueue($metadata->getTransportNames())) {
             return;
         }
 
-        $this->store->registerWorker(WorkerIdentity::current(), $this->config->queue);
+        // Register the worker against the queue(s) it actually consumes — the
+        // `messenger:consume cloud --queues=critical` names — so the dashboard
+        // counts workers per managed queue. Cloud isolates workers to one queue
+        // each and wires the right --queues value; with no --queues (e.g. a
+        // local catch-all worker) we fall back to the default queue.
+        $queueNames = $metadata->getQueueNames();
+        $queue = $queueNames !== null && $queueNames !== []
+            ? implode(',', $queueNames)
+            : $this->config->queue;
+
+        $this->store->registerWorker(WorkerIdentity::current(), $queue);
     }
 
     #[AsEventListener]

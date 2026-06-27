@@ -4,6 +4,7 @@ namespace App\Controller;
 
 use App\Dashboard\DashboardStore;
 use App\Message\ProcessJob;
+use Laravel\Cloud\Symfony\Queue\Messenger\CloudQueueStamp;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -50,7 +51,13 @@ final class DashboardApiController extends AbstractController
         $ids = $this->store->insertBatch($batchId, $queue, $count, microtime(true));
 
         foreach ($ids as $metricId) {
-            $this->bus->dispatch(new ProcessJob($metricId, random_int($min, $max), $failChance));
+            // Route to the chosen managed queue — the ->onQueue('critical')
+            // equivalent. The same name is recorded on the metric row above, so
+            // the dashboard attribution lines up with the real SQS destination.
+            $this->bus->dispatch(
+                new ProcessJob($metricId, random_int($min, $max), $failChance),
+                [new CloudQueueStamp($queue)],
+            );
         }
 
         return new JsonResponse(['batchId' => $batchId]);

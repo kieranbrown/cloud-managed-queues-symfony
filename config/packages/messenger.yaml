@@ -1,9 +1,16 @@
 framework:
     messenger:
-        transports:
-            # Laravel Cloud Managed Queue (SQS via the in-container cloud-agent).
-            # Set MESSENGER_TRANSPORT_DSN to sync:// in .env.local to run without SQS.
-            async: '%env(MESSENGER_TRANSPORT_DSN)%'
-
+        # The bundle ships a ready-made `cloud` transport that points at Laravel
+        # Cloud Managed Queues (SQS via the in-container cloud-agent; SQS direct
+        # locally). Which managed queue a message lands on is chosen per-message
+        # with a CloudQueueStamp at dispatch; a worker picks its queue with
+        # `messenger:consume cloud --queues=<name>`.
         routing:
-            '*': async
+            '*': cloud
+
+# Process jobs inline locally without SQS by overriding the cloud transport:
+# when@dev:
+#     framework:
+#         messenger:
+#             transports:
+#                 cloud: 'sync://'

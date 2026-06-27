@@ -4,6 +4,7 @@ namespace App\Command;
 
 use App\Dashboard\DashboardStore;
 use App\Message\ProcessJob;
+use Laravel\Cloud\Symfony\Queue\Messenger\CloudQueueStamp;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
@@ -67,7 +68,12 @@ final class DispatchJobsCommand extends Command
         $ids = $this->store->insertBatch($batchId, $queue, $count, microtime(true));
 
         foreach ($ids as $metricId) {
-            $this->bus->dispatch(new ProcessJob($metricId, $duration, $failChance));
+            // Route to the chosen managed queue (the ->onQueue() equivalent),
+            // matching the queue name recorded on each metric row above.
+            $this->bus->dispatch(
+                new ProcessJob($metricId, $duration, $failChance),
+                [new CloudQueueStamp($queue)],
+            );
         }
 
         $io->success(sprintf('Dispatched %d job(s) onto the "%s" queue (batch %s).', $count, $queue, $batchId));
