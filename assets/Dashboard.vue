@@ -44,10 +44,15 @@ const isActive = computed(() => state.batchId && state.stats.total > 0 && settle
 const progress = computed(() => (state.stats.total > 0 ? (settled.value / state.stats.total) * 100 : 0));
 
 const timelineMax = computed(() => {
-    if (state.jobs.length === 0) return 1000;
-    const maxEnd = Math.max(...state.jobs.filter((j) => j.endMs).map((j) => j.endMs), 0);
-    const maxWait = Math.max(...state.jobs.filter((j) => j.waitMs).map((j) => j.waitMs), 0);
-    return Math.max(maxEnd, maxWait, 1000);
+    // Reduce rather than Math.max(...spread): jobs can hold up to 10000 entries
+    // and spreading that as call arguments risks a RangeError. `!= null` keeps a
+    // legitimate 0ms datapoint instead of dropping it as falsy.
+    let max = 1000;
+    for (const j of state.jobs) {
+        if (j.endMs != null && j.endMs > max) max = j.endMs;
+        if (j.waitMs != null && j.waitMs > max) max = j.waitMs;
+    }
+    return max;
 });
 
 const workerColors = computed(() => {
@@ -63,9 +68,13 @@ const workerColors = computed(() => {
 });
 
 async function fetchState() {
-    const url = state.batchId ? `/api/state?batch=${encodeURIComponent(state.batchId)}` : '/api/state';
+    const requested = state.batchId;
+    const url = requested ? `/api/state?batch=${encodeURIComponent(requested)}` : '/api/state';
     const response = await fetch(url, { headers: { Accept: 'application/json' } });
     const data = await response.json();
+    // Drop a stale response: if the user switched batches while this request was
+    // in flight, applying it would clobber the newly-selected batch's data.
+    if (state.batchId !== requested) return;
     state.stats = data.stats;
     state.jobs = data.jobs;
     state.recentBatches = data.recentBatches;

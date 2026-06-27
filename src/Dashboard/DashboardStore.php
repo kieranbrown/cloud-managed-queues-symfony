@@ -55,10 +55,21 @@ final class DashboardStore
 
     public function recordPickup(int $metricId, string $workerId, float $at): void
     {
+        // A retried job re-enters here after a prior attempt already set
+        // completed_at/failed; clear them so the row reads as "processing" again
+        // (and isn't counted as settled) until this attempt actually finishes.
+        // Otherwise picked_up_at ends up later than the stale completed_at,
+        // producing a negative process time and a job stuck showing "failed"
+        // while a worker is re-running it.
+        //
+        // The boolean type is explicit for the same Postgres reason as
+        // recordCompletion/recordFailure below.
         $this->connection->update('job_metrics', [
             'picked_up_at' => $at,
             'worker_id' => $workerId,
-        ], ['id' => $metricId]);
+            'completed_at' => null,
+            'failed' => false,
+        ], ['id' => $metricId], ['failed' => Types::BOOLEAN]);
     }
 
     public function recordCompletion(int $metricId, float $at): void
@@ -211,8 +222,13 @@ final class DashboardStore
             [$batchId],
         );
 
+        // Normalise `failed` to 1/0 in SQL: a raw boolean fetched from Postgres
+        // comes back as the string 'f'/'t', and (bool) 'f' is true — so without
+        // this every job would render as "failed" on Cloud (it only looks fine
+        // locally because SQLite stores 0/1).
         $rows = $this->connection->fetchAllAssociative(
-            'SELECT id, job_number, queue, worker_id, dispatched_at, picked_up_at, completed_at, failed
+            'SELECT id, job_number, queue, worker_id, dispatched_at, picked_up_at, completed_at,
+                    (case when failed then 1 else 0 end) as failed
              FROM job_metrics WHERE batch_id = ?
              ORDER BY (picked_up_at is null), picked_up_at asc, job_number asc',
             [$batchId],
