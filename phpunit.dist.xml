@@ -21,9 +21,6 @@
         <testsuite name="Project Test Suite">
             <directory>tests</directory>
         </testsuite>
-        <testsuite name="laravel/cloud-symfony">
-            <directory>packages/cloud-symfony/tests</directory>
-        </testsuite>
     </testsuites>
 
     <source ignoreSuppressionOfDeprecations="true"

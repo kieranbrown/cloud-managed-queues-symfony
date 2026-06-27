@@ -4,7 +4,7 @@ namespace App\EventSubscriber;
 
 use App\Dashboard\DashboardStore;
 use App\Dashboard\WorkerIdentity;
-use Laravel\Cloud\ManagedQueueConfig;
+use Laravel\Cloud\Symfony\Queue\ManagedQueueConfig;
 use Symfony\Component\EventDispatcher\Attribute\AsEventListener;
 use Symfony\Component\Messenger\Event\WorkerStartedEvent;
 use Symfony\Component\Messenger\Event\WorkerStoppedEvent;

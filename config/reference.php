@@ -127,7 +127,7 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  * }
  * @psalm-type ServicesConfig = array{
  *     _defaults?: DefaultsType,
- *     _instanceof?: InstanceofType,
+ *     _instanceof?: array<class-string, InstanceofType>,
  *     ...<string, DefinitionType|AliasType|PrototypeType|StackType|ArgumentsType|null>
  * }
  * @psalm-type ExtensionType = array<string, mixed>
@@ -704,6 +704,9 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  * @psalm-type LaravelCloudConfig = array{
  *     agent_socket?: scalar|Param|null, // Default path to the cloud-agent runtime socket. Overridable at runtime via LARAVEL_CLOUD_AGENT_SOCKET. // Default: "/tmp/cloud-agent.sock"
  *     log_socket?: scalar|Param|null, // Default address of the cloud observability log socket. Overridable at runtime via LARAVEL_CLOUD_LOG_SOCKET. // Default: "unix:///tmp/cloud-init.sock"
+ *     queue?: bool|array{ // Laravel Cloud Managed Queues, on top of Symfony Messenger.
+ *         enabled?: bool|Param, // Default: true
+ *     },
  * }
  * @psalm-type DoctrineConfig = array{
  *     dbal?: array{
