@@ -3,7 +3,6 @@
 namespace App\Dashboard;
 
 use Doctrine\DBAL\Connection;
-use Doctrine\DBAL\Schema\Table;
 use Doctrine\DBAL\Types\Types;
 
 /**
@@ -20,47 +19,6 @@ final class DashboardStore
     public function __construct(
         private readonly Connection $connection,
     ) {
-    }
-
-    /**
-     * Create the dashboard tables if they do not already exist. Safe to run on
-     * every deploy.
-     */
-    public function ensureSchema(): void
-    {
-        $schemaManager = $this->connection->createSchemaManager();
-        $platform = $this->connection->getDatabasePlatform();
-
-        if (! $schemaManager->tablesExist(['job_metrics'])) {
-            $metrics = new Table('job_metrics');
-            $metrics->addColumn('id', 'integer', ['autoincrement' => true]);
-            $metrics->addColumn('batch_id', 'string', ['length' => 40]);
-            $metrics->addColumn('queue', 'string', ['length' => 40, 'default' => 'default']);
-            $metrics->addColumn('job_number', 'integer');
-            $metrics->addColumn('dispatched_at', 'float');
-            $metrics->addColumn('picked_up_at', 'float', ['notnull' => false]);
-            $metrics->addColumn('completed_at', 'float', ['notnull' => false]);
-            $metrics->addColumn('worker_id', 'string', ['length' => 255, 'notnull' => false]);
-            $metrics->addColumn('failed', 'boolean', ['default' => false]);
-            $metrics->setPrimaryKey(['id']);
-            $metrics->addIndex(['batch_id']);
-
-            foreach ($platform->getCreateTableSQL($metrics) as $sql) {
-                $this->connection->executeStatement($sql);
-            }
-        }
-
-        if (! $schemaManager->tablesExist(['workers'])) {
-            $workers = new Table('workers');
-            $workers->addColumn('worker_id', 'string', ['length' => 255]);
-            $workers->addColumn('queue', 'string', ['length' => 120, 'notnull' => false]);
-            $workers->addColumn('started_at', 'datetime_immutable');
-            $workers->setPrimaryKey(['worker_id']);
-
-            foreach ($platform->getCreateTableSQL($workers) as $sql) {
-                $this->connection->executeStatement($sql);
-            }
-        }
     }
 
     /**

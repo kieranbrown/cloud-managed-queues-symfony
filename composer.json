@@ -15,6 +15,7 @@
         "ext-iconv": "*",
         "doctrine/dbal": ">=4.4.3",
         "doctrine/doctrine-bundle": ">=3.2.4",
+        "doctrine/doctrine-migrations-bundle": "^4.0",
         "laravel/symfony-on-cloud": "dev-main",
         "pentatrion/vite-bundle": "^8.2.4",
         "symfony/console": "8.1.*",

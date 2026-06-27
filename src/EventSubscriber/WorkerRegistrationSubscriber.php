@@ -33,7 +33,6 @@ final class WorkerRegistrationSubscriber
             return;
         }
 
-        $this->store->ensureSchema();
         $this->store->registerWorker(WorkerIdentity::current(), $this->config->queue);
     }
 
