@@ -3,12 +3,6 @@
     "license": "proprietary",
     "minimum-stability": "stable",
     "prefer-stable": true,
-    "repositories": [
-        {
-            "type": "vcs",
-            "url": "https://github.com/laravel/symfony-on-cloud"
-        }
-    ],
     "require": {
         "php": ">=8.4",
         "ext-ctype": "*",
@@ -16,7 +10,7 @@
         "doctrine/dbal": ">=4.4.3",
         "doctrine/doctrine-bundle": ">=3.2.4",
         "doctrine/doctrine-migrations-bundle": "^4.0",
-        "laravel/symfony-on-cloud": "dev-main",
+        "laravel/symfony-on-cloud": "^0.1.0",
         "pentatrion/vite-bundle": "^8.2.4",
         "symfony/console": "8.1.*",
         "symfony/dotenv": "8.1.*",

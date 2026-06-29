@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "9ea837c80b896079cbf10b57a07d6dd9",
+    "content-hash": "eb30db1c1b7e31423cd22560acf239b7",
     "packages": [
         {
             "name": "aws/aws-crt-php",
@@ -1195,10 +1195,10 @@
         },
         {
             "name": "laravel/symfony-on-cloud",
-            "version": "dev-main",
+            "version": "v0.1.0",
             "source": {
                 "type": "git",
-                "url": "git@github.com:laravel/symfony-on-cloud.git",
+                "url": "https://github.com/laravel/symfony-on-cloud.git",
                 "reference": "902f989f2c325c1affef04fdbd7adb9a81e0ebc8"
             },
             "dist": {
@@ -1221,25 +1221,20 @@
             "require-dev": {
                 "phpunit/phpunit": "^11.0 || ^12.0"
             },
-            "default-branch": true,
             "type": "symfony-bundle",
             "autoload": {
                 "psr-4": {
                     "Laravel\\Cloud\\Symfony\\": "src/"
                 }
             },
-            "autoload-dev": {
-                "psr-4": {
-                    "Laravel\\Cloud\\Symfony\\Tests\\": "tests/"
-                }
-            },
+            "notification-url": "https://packagist.org/downloads/",
             "license": [
                 "MIT"
             ],
             "description": "Bring Laravel Cloud features to Symfony — a feature-based bundle whose first capability is Managed Queues on top of Symfony Messenger.",
             "support": {
-                "source": "https://github.com/laravel/symfony-on-cloud/tree/main",
-                "issues": "https://github.com/laravel/symfony-on-cloud/issues"
+                "issues": "https://github.com/laravel/symfony-on-cloud/issues",
+                "source": "https://github.com/laravel/symfony-on-cloud/tree/v0.1.0"
             },
             "time": "2026-06-29T13:43:53+00:00"
         },
@@ -5312,9 +5307,7 @@
     "packages-dev": [],
     "aliases": [],
     "minimum-stability": "stable",
-    "stability-flags": {
-        "laravel/symfony-on-cloud": 20
-    },
+    "stability-flags": {},
     "prefer-stable": true,
     "prefer-lowest": false,
     "platform": {
